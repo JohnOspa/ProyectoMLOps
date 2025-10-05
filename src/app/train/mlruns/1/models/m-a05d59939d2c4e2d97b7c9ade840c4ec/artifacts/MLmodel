@@ -1,0 +1,28 @@
+artifact_path: file:///C:/Users/eaop0/OneDrive/Desktop/Especializacion/Segundo_Semestre/Aprendizaje_Nube/Clon_Entregable/ProyectoMLOps/src/notebook/mlruns/1/models/m-a05d59939d2c4e2d97b7c9ade840c4ec/artifacts
+flavors:
+  python_function:
+    data: model.xgb
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.11.9
+  xgboost:
+    code: null
+    data: model.xgb
+    model_class: xgboost.core.Booster
+    model_format: xgb
+    xgb_version: 3.0.5
+is_signature_from_type_hint: false
+mlflow_version: 3.4.0
+model_id: m-a05d59939d2c4e2d97b7c9ade840c4ec
+model_size_bytes: 23542
+model_uuid: m-a05d59939d2c4e2d97b7c9ade840c4ec
+prompts: null
+run_id: defa8b48ff3e4357b2d81ec4a16dc6ec
+signature:
+  inputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float64", "shape": [-1, 3]}}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float32", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2025-10-04 21:00:33.593648'

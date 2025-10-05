@@ -1,0 +1,22 @@
+artifact_path: file:///C:/Users/eaop0/OneDrive/Desktop/Especializacion/Segundo_Semestre/Aprendizaje_Nube/Clon_Entregable/ProyectoMLOps/src/notebook/mlruns/3/models/m-4b06472edbc744869e50ed1e411c9880/artifacts
+flavors:
+  python_function:
+    data: model.xgb
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.11.9
+  xgboost:
+    code: null
+    data: model.xgb
+    model_class: xgboost.core.Booster
+    model_format: xgb
+    xgb_version: 3.0.5
+mlflow_version: 3.4.0
+model_id: m-4b06472edbc744869e50ed1e411c9880
+model_size_bytes: 2868985
+model_uuid: m-4b06472edbc744869e50ed1e411c9880
+prompts: null
+run_id: 53850b26398c42908b07d67d0dfc1eec
+utc_time_created: '2025-10-05 15:01:29.851266'
