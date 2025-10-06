@@ -1,0 +1,22 @@
+artifact_path: file:///C:/Users/ASUS/Documents/6_CURSOS/ESPECIALIZACION/Semestre_II/4_APRENDIZAJE_EN_LA_NUBE/ProyectoMLOps/mlruns/4/models/m-828e23a5740e4f2b937d96597580930c/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.11.9
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+mlflow_version: 3.4.0
+model_id: m-828e23a5740e4f2b937d96597580930c
+model_size_bytes: 807
+model_uuid: m-828e23a5740e4f2b937d96597580930c
+prompts: null
+run_id: 42e14027bad0444a8361f5a71a2b1fc9
+utc_time_created: '2025-10-06 18:40:00.242269'

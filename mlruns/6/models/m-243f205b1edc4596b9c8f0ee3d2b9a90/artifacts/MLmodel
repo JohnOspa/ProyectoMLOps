@@ -1,0 +1,22 @@
+artifact_path: file:///C:/Users/ASUS/Documents/6_CURSOS/ESPECIALIZACION/Semestre_II/4_APRENDIZAJE_EN_LA_NUBE/ProyectoMLOps/mlruns/6/models/m-243f205b1edc4596b9c8f0ee3d2b9a90/artifacts
+flavors:
+  python_function:
+    data: model.xgb
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.11.9
+  xgboost:
+    code: null
+    data: model.xgb
+    model_class: xgboost.sklearn.XGBClassifier
+    model_format: xgb
+    xgb_version: 3.0.5
+mlflow_version: 3.4.0
+model_id: m-243f205b1edc4596b9c8f0ee3d2b9a90
+model_size_bytes: 471956
+model_uuid: m-243f205b1edc4596b9c8f0ee3d2b9a90
+prompts: null
+run_id: 8e920b3b99e24bd9a30553c32b8d4527
+utc_time_created: '2025-10-06 19:48:58.930644'
