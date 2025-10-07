@@ -300,7 +300,7 @@ def train_model(X_train, y_train, X_val, y_val, dv: DictVectorizer) -> str:
             'threshold_f1': best_t,
             'metrics': {"accuracy": acc, "precision": prec, "recall": rec, "f1": f1, "roc_auc": roc},
             'params': best_params,
-            'features_names': dv.feature_names_ if hasattr(dv, 'features_name_') else None
+            'features_names': dv.feature_names_ if hasattr(dv, 'feature_names_') else None
         }
 
         model_package_path = "models/model_complete.bin"

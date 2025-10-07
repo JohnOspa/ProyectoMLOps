@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 import requests
 import json
 import logging
@@ -62,10 +59,17 @@ def test_prediction(data):
     
     logger.info(f"Status: {response.status_code}")
     logger.info(f"Response: {json.dumps(response.json(), indent=2)}")
+    
     if response.status_code == 200:
+        result = response.json()
         logger.info("Request successful!")
+        logger.info(f"\nPREDICTION RESULT:")
+        logger.info(f"   Income Category: {result.get('income_category')}")
+        logger.info(f"   Probability: {result.get('prediction_proba', 0):.4f}")
+        logger.info(f"   Confidence: {result.get('confidence', 0):.4f}")
+        logger.info(f"   Threshold Used: {result.get('threshold_used', 0.5):.3f}")
     else:
-        logger.info("Request Failed!")
+        logger.error("Request Failed!")
     logger.info("-" * 50)
 
 def main():
@@ -86,43 +90,60 @@ def main():
         if example_data:
             test_prediction(example_data)
         
-        # Test with custom data
+        # Test with custom data (complete features for high income prediction)
         custom_data = {
             "age": 35,
             "workclass": "Private",
+            "fnlwgt": 280464,
             "education": "Bachelors",
+            "education-num": 13,
             "marital-status": "Married-civ-spouse",
             "occupation": "Exec-managerial",
             "relationship": "Husband",
             "race": "White",
             "sex": "Male",
+            "capital-gain": 5178,
+            "capital-loss": 0,
+            "hours-per-week": 45,
             "native-country": "United-States"
         }
         
         logger.info("Testing with custom data (likely high income)...")
         test_prediction(custom_data)
         
-        # Test with another custom data
+        # Test with another custom data (complete features for low income prediction)
         custom_data_2 = {
             "age": 22,
             "workclass": "Private",
+            "fnlwgt": 201490,
             "education": "HS-grad",
+            "education-num": 9,
             "marital-status": "Never-married",
             "occupation": "Handlers-cleaners",
             "relationship": "Own-child",
             "race": "White",
             "sex": "Female",
+            "capital-gain": 0,
+            "capital-loss": 0,
+            "hours-per-week": 25,
             "native-country": "United-States"
         }
         
         logger.info("Testing with custom data (likely low income)...")
         test_prediction(custom_data_2)
         
+        # Summary
+        logger.info("=" * 60)
+        logger.info("ALL TESTS COMPLETED!")
+        logger.info("=" * 60)
+        
     except requests.exceptions.ConnectionError:
-        logger.info("ERROR: Could not connect to the API. Make sure the Flask server is running!")
+        logger.error("ERROR: Could not connect to the API. Make sure the Flask server is running!")
+        logger.info("To start the server, run: python predict_api.py")
     except Exception as e:
-        logger.info(f"ERROR: {e}")
+        logger.error(f"ERROR: {e}")
 
 if __name__ == "__main__":
-    logger.info("Starting test for Adult API...")
+    logger.info("Starting comprehensive test suite for Adult Income Prediction API...")
+    logger.info("This will test all endpoints including error handling...")
     main()
