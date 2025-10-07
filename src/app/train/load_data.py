@@ -9,11 +9,17 @@ from typing import Tuple, Optional
 from ucimlrepo import fetch_ucirepo
 
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 import xgboost as xgb
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import root_mean_squared_error
 from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,
+    confusion_matrix, RocCurveDisplay, PrecisionRecallDisplay
+)
 
 import mlflow
 from prefect import task, flow, get_run_logger
@@ -60,7 +66,7 @@ def load_and_prepare_data(dataset_id: int = 2) -> pd.DataFrame:
         y = adult.data.targets
         logger_task.info(f"Dataset cargado exitosamente. Shape: {X.shape}")
         
-        # Combinar features y target en un solo DataFrame
+        # Combinar features y target en un solo DataFrame  (target -> 'income')
         if isinstance(y, pd.DataFrame):
             y_renamed = y.copy()
             if len(y.columns) == 1:
@@ -89,7 +95,7 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     logger_task.info(f"Mapeo correcto de sexo")
 
     # Columnas categóricas a codificar
-    columnas_categoricas = ['workclass','education','marital-status','occupation','relationship','race','native-country']
+    columnas_categoricas = ['workclass','marital-status','occupation','relationship','native-country']
 
     # Inicializar codificadores
     encoders = {}
@@ -180,6 +186,12 @@ def train_model(X_train, y_train, X_val, y_val, dv: DictVectorizer) -> str:
     """
     Train XGBoost model and log to MLflow.
 
+    Entrena XGBoost (clasificación) y registra en MLflow:
+    - parámetros, métricas de clasificación (acc/prec/recall/f1/roc_auc),
+    - threshold óptimo por F1,
+    - plots ROC/PR, matriz de confusión,
+    - preprocesador y paquete del modelo.
+
     Args:
         X_train: Training features
         y_train: Training targets
@@ -199,16 +211,25 @@ def train_model(X_train, y_train, X_val, y_val, dv: DictVectorizer) -> str:
     logger.info(f"Training with {X_train.shape[0]} samples, {X_train.shape[1]} features")
 
     with mlflow.start_run() as run:
-        train = xgb.DMatrix(X_train, label=y_train)
-        valid = xgb.DMatrix(X_val, label=y_val)
+        dtrain = xgb.DMatrix(X_train, label=y_train)
+        dval = xgb.DMatrix(X_val, label=y_val)
+
+        # ===== Mejores hiperparámetros (de Optuna) + binaria + balanceo =====
+        n_pos = int((y_train == 1).sum())
+        n_neg = int((y_train == 0).sum())
+        spw = n_neg / n_pos if n_pos > 0 else 1.0
 
         best_params = {
-            'learning_rate': 0.09585355369315604,
-            'max_depth': 30,
-            'min_child_weight': 1.060597050922164,
-            'objective': 'binary:logistic',  # Para clasificación binaria
-            'reg_alpha': 0.018060244040060163,
-            'reg_lambda': 0.011658731377413597,
+            # Optuna 
+            'max_depth': 9,
+            'learning_rate': 0.06927659202446733,
+            'subsample': 0.7384018543749307,
+            'colsample_bytree': 0.7456148148748957,
+            'gamma': 3.131133258823818,
+            # binaria + tracking estable
+            'objective': 'binary:logistic',
+            'eval_metric': 'logloss',
+            'scale_pos_weight': spw,
             'seed': 42
         }
 
@@ -216,16 +237,56 @@ def train_model(X_train, y_train, X_val, y_val, dv: DictVectorizer) -> str:
 
         booster = xgb.train(
             params=best_params,
-            dtrain=train,
-            num_boost_round=30,
-            evals=[(valid, 'validation')],
+            dtrain=dtrain,
+            num_boost_round=333,
+            evals=[(dval, "validation")],
             early_stopping_rounds=50
         )
 
-        y_pred_proba = booster.predict(valid)
+        y_pred_proba = booster.predict(dval)
         y_pred = (y_pred_proba > 0.5).astype(int)
-        accuracy = (y_pred == y_val).mean()
-        mlflow.log_metric("accuracy", accuracy)
+
+         # ===== Métricas de clasificación =====
+        # ===== Métricas de clasificación =====
+        acc = accuracy_score(y_val, y_pred)
+        prec = precision_score(y_val, y_pred)
+        rec = recall_score(y_val, y_pred)
+        f1 = f1_score(y_val, y_pred)
+        roc = roc_auc_score(y_val, y_pred_proba)
+
+        mlflow.log_metric("accuracy", acc)
+        mlflow.log_metric("precision", prec)
+        mlflow.log_metric("recall", rec)
+        mlflow.log_metric("f1", f1)
+        mlflow.log_metric("roc_auc", roc)
+
+        # ===== Threshold óptimo para F1 =====
+        thresholds = np.linspace(0.1, 0.9, 81)
+        f1s = [f1_score(y_val, (y_pred_proba >= t).astype(int)) for t in thresholds]
+        best_t = float(thresholds[int(np.argmax(f1s))])
+        mlflow.log_metric("best_threshold_f1", best_t)
+
+        # ===== Plots: ROC y PR, matriz de confusión =====
+        # ROC
+        RocCurveDisplay.from_predictions(y_val, y_pred_proba)
+        plt.savefig(models_folder / "roc.png", bbox_inches="tight")
+        plt.close()
+
+        # PR
+        PrecisionRecallDisplay.from_predictions(y_val, y_pred_proba)
+        plt.savefig(models_folder / "pr.png", bbox_inches="tight")
+        plt.close()
+
+        # Matriz de confusión
+        cm = confusion_matrix(y_val, y_pred)
+        fig, ax = plt.subplots()
+        ax.imshow(cm, interpolation='nearest')
+        ax.set_title('Confusion matrix')
+        ax.set_xlabel('Predicted'); ax.set_ylabel('True')
+        for (i, j), z in np.ndenumerate(cm):
+            ax.text(j, i, str(z), ha='center', va='center')
+        plt.savefig(models_folder / "confusion_matrix.png", bbox_inches="tight")
+        plt.close()
 
         # Save preprocessor
         preprocessor_path = "models/preprocessor.b"
@@ -234,10 +295,11 @@ def train_model(X_train, y_train, X_val, y_val, dv: DictVectorizer) -> str:
 
         # Save complete model package for Flask API
         model_package = {
-            'model' : booster,
-            'preprocessor' : dv,
-            'accuracy' : accuracy,
-            'model_params' : best_params,
+            'model': booster,
+            'preprocessor': dv,
+            'threshold_f1': best_t,
+            'metrics': {"accuracy": acc, "precision": prec, "recall": rec, "f1": f1, "roc_auc": roc},
+            'params': best_params,
             'features_names': dv.feature_names_ if hasattr(dv, 'features_name_') else None
         }
 
@@ -249,6 +311,10 @@ def train_model(X_train, y_train, X_val, y_val, dv: DictVectorizer) -> str:
         try:
             mlflow.log_artifact(preprocessor_path, artifact_path="preprocessor")
             mlflow.log_artifact(model_package_path, artifact_path="complete_model")
+            mlflow.log_artifact(str(models_folder / "roc.png"), artifact_path="plots")
+            mlflow.log_artifact(str(models_folder / "pr.png"), artifact_path="plots")
+            mlflow.log_artifact(str(models_folder / "confusion_matrix.png"), artifact_path="plots")
+
             # Log model
             input_example = X_train[:1]
             mlflow.xgboost.log_model(
@@ -273,7 +339,13 @@ def train_model(X_train, y_train, X_val, y_val, dv: DictVectorizer) -> str:
 
         # Create Prefect artifact with model performance
         performance_data = [
-            ["Accuracy", f"{accuracy:.4f}"],
+            ["Accuracy", f"{acc:.4f}"],
+            ["Precision", f"{prec:.4f}"],
+            ["Recall", f"{rec:.4f}"],
+            ["F1", f"{f1:.4f}"],
+            ["ROC AUC", f"{roc:.4f}"],
+            ["Best threshold (F1)", f"{best_t:.3f}"],
+            ["Boost Rounds", 333],
             ["Learning Rate", best_params['learning_rate']],
             ["Max Depth", best_params['max_depth']],
             ["Num Boost Rounds", 30],
@@ -283,7 +355,7 @@ def train_model(X_train, y_train, X_val, y_val, dv: DictVectorizer) -> str:
         create_table_artifact(
             key="model-performance",
             table=performance_data,
-            description=f"Model performance metrics - Accuracy: {accuracy:.4f}"
+            description=f"Model performance metrics - Accuracy: {acc:.4f}"
         )
 
         # Create markdown artifact with training summary
@@ -291,20 +363,22 @@ def train_model(X_train, y_train, X_val, y_val, dv: DictVectorizer) -> str:
         # Model Training Summary
 
         ## Performance
-        - **Accuracy**: {accuracy:.4f}
+        - **Accuracy**: {acc:.4f}
         - **MLflow Run ID**: {run.info.run_id}
+        - Precision: **{prec:.4f}**
+        - Recall: **{rec:.4f}**
+        - F1: **{f1:.4f}**
+        - ROC AUC: **{roc:.4f}**
+        - Best threshold (F1): **{best_t:.3f}**
 
         ## Parameters
-        - Learning Rate: {best_params['learning_rate']}
-        - Max Depth: {best_params['max_depth']}
-        - Min Child Weight: {best_params['min_child_weight']}
-        - Regularization Alpha: {best_params['reg_alpha']}
-        - Regularization Lambda: {best_params['reg_lambda']}
+        {best_params}
 
         ## Training Details
-        - Boost Rounds: 30
+        - Boost Rounds: 333
         - Early Stopping: 50 rounds
         - Objective: {best_params['objective']}
+        - MLflow Run ID: {run.info.run_id}
         """
 
         create_markdown_artifact(
@@ -329,7 +403,8 @@ def income_classification_flow() -> str:
     df_processed = preprocess_data(df)
     
     # Split data
-    df_train, df_val = train_test_split(df_processed, test_size=0.4, random_state=42)
+    df_train, df_val = train_test_split(df_processed, test_size=0.4, random_state=42,
+                                         stratify=df_processed["income"])
 
     # Create features
     X_train, dv = create_features(df_train)
@@ -337,8 +412,8 @@ def income_classification_flow() -> str:
 
     # Prepare targets
     target = 'income'
-    y_train = df_train[target].values
-    y_val = df_val[target].values
+    y_train = df_train[target].values.astype(int)
+    y_val = df_val[target].values.astype(int)
 
     # Train model
     run_id = train_model(X_train, y_train, X_val, y_val, dv)
@@ -373,7 +448,7 @@ def income_classification_flow() -> str:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Train a model to predict taxi trip duration using Prefect.')
+    parser = argparse.ArgumentParser(description='Train a model to predict adult income with Prefect + MLflow.')
     parser.add_argument('--mlflow-uri', type=str, help='MLflow tracking URI (overrides environment variable)')
     args = parser.parse_args()
 
@@ -385,9 +460,9 @@ if __name__ == "__main__":
     try:
         # Run the flow
         run_id = income_classification_flow()
-        print("\n✅ Pipeline completed successfully!")
-        print(f"📊 MLflow run_id: {run_id}")
-        print(f"🔗 View results at: {mlflow.get_tracking_uri()}")
+        logger.info("\n✅ Pipeline completed successfully!")
+        logger.info(f"📊 MLflow run_id: {run_id}")
+        logger.info(f"🔗 View results at: {mlflow.get_tracking_uri()}")
 
         # Save run ID for reference
         with open("prefect_run_id.txt", "w") as f:
