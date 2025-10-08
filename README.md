@@ -153,3 +153,8 @@ ProyectoMLOps/
 **ProyectoMLOps** es una implementación completa y profesional de un sistema de machine learning que abarca desde la exploración inicial de datos hasta el deployment de un servicio de predicción en producción.
 
 El proyecto utiliza el dataset Adult para demostrar cómo construir, entrenar, evaluar y desplegar un modelo de clasificación de ingresos utilizando las mejores prácticas de MLOps, incluyendo orquestación con Prefect, tracking con MLflow, y deployment con Flask.
+
+## Links Adicionales
+
+[🔗 Presentación](https://gamma.app/docs/mzcwv5lcwdqcozh)
+
